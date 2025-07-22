@@ -1,5 +1,6 @@
 import streamlit as st
 import boto3
+import json
 
 st.set_page_config(page_title="AI Clinical Trial Report Summarizer", layout="centered")
 
@@ -14,25 +15,30 @@ if st.button("Summarize"):
     else:
         bedrock = boto3.client(
             service_name="bedrock-runtime",
-            region_name="us-east-1"  # or your chosen region
+            region_name="us-east-1"
         )
 
+        prompt = f"""Human: Summarize the following clinical trial report in 2-3 sentences:\n{input_text}\n\nAssistant:"""
+
         body = {
-            "prompt": f"Summarize this clinical trial report in 2-3 sentences:\n{input_text}",
+            "anthropic_version": "bedrock-2023-05-31",
+            "prompt": prompt,
             "max_tokens": 300,
             "temperature": 0.7,
             "top_k": 250,
             "top_p": 0.9,
-            "stop_sequences": []
+            "stop_sequences": ["\n\nHuman:"]
         }
 
         response = bedrock.invoke_model(
-            modelId="amazon.titan-text-express-v1",
-            body=str(body).encode("utf-8"),
+            modelId="anthropic.claude-v2",
+            body=json.dumps(body),
             accept="application/json",
             contentType="application/json"
         )
 
-        result = response['body'].read().decode('utf-8')
+        result_json = json.loads(response['body'].read())
+        summary = result_json.get("completion", "No summary found.")
+
         st.success("Summary:")
-        st.write(result)
+        st.write(summary)
