@@ -1,44 +1,43 @@
 import streamlit as st
-import boto3
-import json
+import openai
+import PyPDF2
 
-st.set_page_config(page_title="AI Clinical Trial Report Summarizer", layout="centered")
+st.set_page_config(page_title="Clinical Trial Summarizer", layout="centered")
+st.title("Clinical Trial Report Summarizer")
 
-st.title("🧠 AI Clinical Trial Report Summarizer")
-st.markdown("Summarize structured clinical trial reports using Generative AI via AWS Bedrock.")
+openai_api_key = st.secrets["openai"]["api_key"]
+openai.api_key = openai_api_key
 
-input_text = st.text_area("Paste your clinical trial report (structured format):", height=200)
+input_method = st.radio("Choose Input Method:", ["Upload PDF", "Paste Trial Text"])
+trial_text = ""
 
-if st.button("Summarize"):
-    if not input_text.strip():
-        st.warning("Please enter some text to summarize.")
+if input_method == "Upload PDF":
+    uploaded_file = st.file_uploader("Upload Clinical Trial PDF", type="pdf")
+    if uploaded_file:
+        reader = PyPDF2.PdfReader(uploaded_file)
+        trial_text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+
+elif input_method == "Paste Trial Text":
+    trial_text = st.text_area("Paste Clinical Trial Report Text Here", height=300)
+
+if st.button("Summarize Report"):
+    if not trial_text.strip():
+        st.error("Please upload or paste some content.")
     else:
-        bedrock = boto3.client(
-            service_name="bedrock-runtime",
-            region_name="us-east-1"
-        )
-
-        prompt = f"""Human: Summarize the following clinical trial report in 2-3 sentences:\n{input_text}\n\nAssistant:"""
-
-        body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "prompt": prompt,
-            "max_tokens": 300,
-            "temperature": 0.7,
-            "top_k": 250,
-            "top_p": 0.9,
-            "stop_sequences": ["\n\nHuman:"]
-        }
-
-        response = bedrock.invoke_model(
-            modelId="anthropic.claude-v2",
-            body=json.dumps(body),
-            accept="application/json",
-            contentType="application/json"
-        )
-
-        result_json = json.loads(response['body'].read())
-        summary = result_json.get("completion", "No summary found.")
-
-        st.success("Summary:")
-        st.write(summary)
+        with st.spinner("Generating summary..."):
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are a clinical research expert. Summarize the clinical trial report into Objective, Methods, Results, and Conclusion."},
+                        {"role": "user", "content": trial_text}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1000
+                )
+                summary = response.choices[0].message.content
+                st.success("Summary Generated!")
+                st.text_area("Trial Summary", summary, height=300)
+            except Exception as e:
+                st.error(f"Error: {e}")
+                
