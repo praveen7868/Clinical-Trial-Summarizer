@@ -1,12 +1,11 @@
 import streamlit as st
-import openai
 import PyPDF2
+from transformers import pipeline
 
 st.set_page_config(page_title="Clinical Trial Summarizer", layout="centered")
 st.title("Clinical Trial Report Summarizer")
 
-openai_api_key = st.secrets["openai"]["api_key"]
-openai.api_key = openai_api_key
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 input_method = st.radio("Choose Input Method:", ["Upload PDF", "Paste Trial Text"])
 trial_text = ""
@@ -26,16 +25,9 @@ if st.button("Summarize Report"):
     else:
         with st.spinner("Generating summary..."):
             try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a clinical research expert. Summarize the clinical trial report into Objective, Methods, Results, and Conclusion."},
-                        {"role": "user", "content": trial_text}
-                    ],
-                    temperature=0.3,
-                    max_tokens=1000
-                )
-                summary = response.choices[0].message.content
+                chunks = [trial_text[i:i+1000] for i in range(0, len(trial_text), 1000)]
+                summaries = [summarizer(chunk, max_length=200, min_length=30, do_sample=False)[0]['summary_text'] for chunk in chunks]
+                summary = "\n\n".join(summaries)
                 st.success("Summary Generated!")
                 st.text_area("Trial Summary", summary, height=300)
             except Exception as e:
