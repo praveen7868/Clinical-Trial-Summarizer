@@ -27,7 +27,7 @@ if st.button("Summarize Report"):
         with st.spinner("Generating summary..."):
             try:
                 response = openai.ChatCompletion.create(
-                    model="gpt-4",
+                    model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": "You are a clinical research expert. Summarize the clinical trial report into Objective, Methods, Results, and Conclusion."},
                         {"role": "user", "content": trial_text}
@@ -40,4 +40,3 @@ if st.button("Summarize Report"):
                 st.text_area("Trial Summary", summary, height=300)
             except Exception as e:
                 st.error(f"Error: {e}")
-                
