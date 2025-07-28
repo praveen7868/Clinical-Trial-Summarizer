@@ -1,11 +1,16 @@
 import streamlit as st
 import PyPDF2
 from transformers import pipeline
+import textwrap
 
 st.set_page_config(page_title="Clinical Trial Summarizer", layout="centered")
 st.title("Clinical Trial Report Summarizer")
 
-summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+@st.cache_resource
+def load_model():
+    return pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+
+summarizer = load_model()
 
 input_method = st.radio("Choose Input Method:", ["Upload PDF", "Paste Trial Text"])
 trial_text = ""
@@ -13,8 +18,11 @@ trial_text = ""
 if input_method == "Upload PDF":
     uploaded_file = st.file_uploader("Upload Clinical Trial PDF", type="pdf")
     if uploaded_file:
-        reader = PyPDF2.PdfReader(uploaded_file)
-        trial_text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        try:
+            reader = PyPDF2.PdfReader(uploaded_file)
+            trial_text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        except Exception as e:
+            st.error(f"PDF Read Error: {e}")
 
 elif input_method == "Paste Trial Text":
     trial_text = st.text_area("Paste Clinical Trial Report Text Here", height=300)
@@ -30,12 +38,17 @@ if st.button("Summarize Report"):
     else:
         with st.spinner("Generating summary..."):
             try:
-                chunks = [trial_text[i:i + 1000] for i in range(0, len(trial_text), 1000)]
+                chunks = textwrap.wrap(trial_text, width=1000)
+                if len(chunks) > 3:
+                    chunks = chunks[:3]
+                    st.warning("Only the first 3 chunks were processed due to system limits.")
+
                 summaries = []
                 for i, chunk in enumerate(chunks):
-                    st.write(f"Processing chunk {i + 1}/{len(chunks)}...")
+                    st.write(f"Processing chunk {i + 1} of {len(chunks)}...")
                     result = summarizer(chunk, max_length=summary_length, min_length=30, do_sample=False)[0]['summary_text']
                     summaries.append(result)
+
                 summary = "\n\n".join(summaries)
                 st.success("Summary Generated!")
                 st.text_area("Trial Summary", summary, height=300)
